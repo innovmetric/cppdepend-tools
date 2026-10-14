@@ -1,0 +1,9 @@
+# Keep text normalized in Git and use Windows line endings in working trees.
+* text=auto
+*.py text eol=crlf
+*.toml text eol=crlf
+*.md text eol=crlf
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+.gitignore text eol=crlf
+.gitattributes text eol=crlf

@@ -1,0 +1,17 @@
+[build-system]
+requires = ["hatchling>=1.26,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "im-cppdepend-tools"
+version = "0.1.0"
+description = "Command-line tools for working with CppDepend"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+imdepend = "imdepend.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/imdepend"]
