@@ -4,6 +4,9 @@
 validates packaging and distribution: it supports only `--help` and `--version`.
 CppDepend installation commands will follow in a later release.
 
+The planned package, profile, and launch workflows are described in the
+[CppDepend installation guide](docs/cppdepend-install.md).
+
 ## Install from the internal share
 
 Prerequisites: Python 3.12 and uv. In PowerShell, run:
