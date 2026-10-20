@@ -9,6 +9,7 @@ The commands below become usable when the installer release is published.
 
 A **package** is one registered vendor ZIP. It has a readable name called a
 *slug*, a description, and a SHA-256 hash that identifies its exact contents.
+The slug can be corrected later; the archive hash does not change.
 The vendor version alone is not enough: two ZIPs can both be labeled
 "CppDepend 2026.2" while containing different builds. Register a ZIP once;
 developers can then install it by slug without finding the original download.
@@ -52,9 +53,10 @@ wheels. The two folders contain different products:
 ```
 
 The 12 hexadecimal characters in the filenames are a readable prefix of the
-full SHA-256 recorded in the manifest and index. The example names and hash
-above are illustrative. Shared-folder permissions control who can register
-packages. Developers with read access can install registered packages.
+full SHA-256 recorded in the manifest and index. The filenames remain stable
+if a package slug is corrected later. The example names and hash above are
+illustrative. Shared-folder permissions control who can register packages.
+Developers with read access can install registered packages.
 
 The default locations work without a setup step. To check them or choose other
 locations, use `imdepend setup`; consult `imdepend setup --help` for the
@@ -84,6 +86,18 @@ Registering identical ZIP contents again reports the existing registration and
 changes nothing. A slug already assigned to different contents cannot be
 reused. Package and profile names use lowercase letters, digits, and hyphens;
 profile names are at most 32 characters.
+
+To correct a package slug, a developer with write access runs:
+
+```powershell
+imdepend package rename 2026-2-fxi 2026-2-fix
+```
+
+The command asks for confirmation and then replaces the old slug. It does not
+keep an alias: commands or scripts using the old spelling must be updated.
+The ZIP stays unchanged, and profiles already installed from it remain usable
+because they retain its SHA-256 identity. A profile may display its saved old
+slug while the repository is offline.
 
 ## Install, compare, and roll back profiles
 
