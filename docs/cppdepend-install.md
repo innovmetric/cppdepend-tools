@@ -54,8 +54,10 @@ wheels. The two folders contain different products:
 
 The 12 hexadecimal characters in the filenames are a readable prefix of the
 full SHA-256 recorded in the manifest and index. The filenames remain stable
-if a package slug is corrected later. The example names and hash above are
-illustrative. Shared-folder permissions control who can register packages.
+if a package slug is corrected later. The index records the current slug; the
+manifest keeps the slug used at registration as provenance. The example names
+and hash above are illustrative. Shared-folder permissions control who can
+register packages.
 Developers with read access can install registered packages.
 
 The default locations work without a setup step. To check them or choose other
