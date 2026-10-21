@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import shutil
 import subprocess
@@ -15,6 +16,7 @@ import sys
 import tempfile
 import tomllib
 import uuid
+import zipfile
 from pathlib import Path
 
 
@@ -45,6 +47,7 @@ def verify_wheel(wheel: Path, package_version: str, uv: str) -> None:
         environment = os.environ.copy()
         environment["UV_TOOL_DIR"] = str(temporary_path / "tools")
         environment["UV_TOOL_BIN_DIR"] = str(temporary_path / "bin")
+        environment["LOCALAPPDATA"] = str(temporary_path / "local")
 
         # Install the wheel offline just as a recipient will. This detects
         # missing package files and entry-point errors that source tests miss.
@@ -69,25 +72,68 @@ def verify_wheel(wheel: Path, package_version: str, uv: str) -> None:
         if not command.is_file():
             raise RuntimeError(f"The wheel did not install an imdepend command: {command}")
 
-        # Check the two promised commands against the *installed* artifact.
+        # Check the installed entry point and its user-facing command tree.
         result = subprocess.run(
-            [str(command), "--version"], capture_output=True, text=True, check=True
+            [str(command), "--version"], capture_output=True, text=True, check=True,
+            env=environment,
         )
         expected = f"imdepend {package_version}"
         if result.stdout.strip() != expected:
             raise RuntimeError(f"Unexpected --version output: {result.stdout!r}")
         result = subprocess.run(
-            [str(command), "--help"], capture_output=True, text=True, check=True
+            [str(command), "--help"], capture_output=True, text=True, check=True,
+            env=environment,
         )
-        if "usage: imdepend" not in result.stdout or "--version" not in result.stdout:
+        if "usage: imdepend" not in result.stdout or "package" not in result.stdout or "profile" not in result.stdout:
             raise RuntimeError("The installed command did not show the expected help")
 
-        # The first release deliberately has no working CppDepend subcommands.
+        # Status and profile inspection must work without the network share.
         result = subprocess.run(
-            [str(command), "status"], capture_output=True, text=True, check=False
+            [str(command), "status", "--json"], capture_output=True, text=True,
+            check=True, env=environment,
         )
-        if result.returncode == 0:
-            raise RuntimeError("An unimplemented subcommand unexpectedly succeeded")
+        status = json.loads(result.stdout)
+        if status["command"] != "status" or status["data"]["profiles"] != []:
+            raise RuntimeError(f"Unexpected installed status result: {status}")
+        result = subprocess.run(
+            [str(command), "profile", "list", "--json"], capture_output=True,
+            text=True, check=True, env=environment,
+        )
+        if json.loads(result.stdout)["data"]["profiles"] != []:
+            raise RuntimeError("Fresh tool store unexpectedly has profiles")
+
+        # Exercise the package and profile commands from the wheel itself with
+        # harmless ZIP fixtures. This catches missing modules in the artifact.
+        package_root = temporary_path / "packages"
+        profile_root = temporary_path / "profiles"
+        package_root.mkdir()
+        for slug, payload in (("first", b"console-1"), ("second", b"console-2")):
+            archive = temporary_path / f"{slug}.zip"
+            with zipfile.ZipFile(archive, "w") as output:
+                output.writestr("VisualCppDepend.exe", b"gui")
+                output.writestr("CppDepend.Console.exe", payload)
+        subprocess.run(
+            [str(command), "setup", "--package-root", str(package_root),
+             "--profile-root", str(profile_root), "--json"],
+            capture_output=True, text=True, check=True, env=environment,
+        )
+        for slug in ("first", "second"):
+            archive = temporary_path / f"{slug}.zip"
+            subprocess.run(
+                [str(command), "package", "register", str(archive), "--slug", slug,
+                 "--summary", slug, "--yes", "--json"],
+                capture_output=True, text=True, check=True, env=environment,
+            )
+            subprocess.run(
+                [str(command), "profile", "install", "smoke", slug, "--json"],
+                capture_output=True, text=True, check=True, env=environment,
+            )
+        rolled_back = subprocess.run(
+            [str(command), "profile", "rollback", "smoke", "--json"],
+            capture_output=True, text=True, check=True, env=environment,
+        )
+        if json.loads(rolled_back.stdout)["data"]["current"]["installed_slug"] != "first":
+            raise RuntimeError("Installed wheel rollback did not restore the first package")
         print(f"Verified installed wheel: {expected}", flush=True)
 
 
@@ -123,6 +169,23 @@ def publish_wheel(wheel: Path, package_version: str, digest: str, share_root: Pa
     print(f"SHA-256 {digest}", flush=True)
 
 
+def verify_publish_source(package_version: str) -> None:
+    # A published version is immutable, so it must identify a reviewed source
+    # commit rather than an arbitrary local build or uncommitted edits.
+    status = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=normal"],
+        cwd=REPOSITORY, capture_output=True, text=True, check=True,
+    )
+    if status.stdout.strip():
+        raise RuntimeError("Publishing requires a clean Git worktree")
+    tags = subprocess.run(
+        ["git", "tag", "--points-at", "HEAD"],
+        cwd=REPOSITORY, capture_output=True, text=True, check=True,
+    )
+    if f"v{package_version}" not in tags.stdout.splitlines():
+        raise RuntimeError(f"Publishing requires tag v{package_version} on HEAD")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -134,14 +197,16 @@ def main() -> int:
     )
     arguments = parser.parse_args()
 
-    if sys.version_info < (3, 12):
-        parser.error("run the release script with Python 3.12 or newer")
+    if sys.version_info[:2] != (3, 12):
+        parser.error("run the release script with Python 3.12 to verify the recipient baseline")
     uv = shutil.which("uv")
     if uv is None:
         parser.error("uv is not on PATH")
 
     project = tomllib.loads((REPOSITORY / "pyproject.toml").read_text(encoding="utf-8"))
     package_version = project["project"]["version"]
+    if arguments.publish:
+        verify_publish_source(package_version)
     wheel_name = f"im_cppdepend_tools-{package_version}-py3-none-any.whl"
     output_dir = REPOSITORY / "dist" / package_version
 
