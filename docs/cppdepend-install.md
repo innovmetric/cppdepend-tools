@@ -1,9 +1,10 @@
 # Install and use CppDepend with imdepend
 
 `imdepend` manages portable CppDepend ZIP distributions on Windows. This guide
-describes the planned installation commands. The current `0.1.0` release is a
-packaging check: it supports only `imdepend --help` and `imdepend --version`.
-The commands below become usable when the installer release is published.
+describes the installer commands implemented for the upcoming `0.2.0` release.
+The `0.1.0` wheel is a packaging check: it supports only
+`imdepend --help` and `imdepend --version`. The commands below require the
+`0.2.0` wheel once it is published.
 
 ## Packages and profiles
 
@@ -31,6 +32,8 @@ The tool uses `%LOCALAPPDATA%\imdepend\profiles` for local profiles and
 separate from uv's tool environment, so upgrading `imdepend` does not replace
 your CppDepend installations. `imdepend` does not alter CppDepend's shared
 history and preferences in `%APPDATA%\CppDepend` or manage license activation.
+It starts with fresh configuration and does not import profiles created by the
+earlier Codex installation skill.
 
 ## Shared package repository
 
@@ -47,7 +50,7 @@ wheels. The two folders contain different products:
 \\innovmetric.com\innovdfs\software\cppdepend\
   cppdepend-tools\                  imdepend release wheels
   cppdepend-packages\               registered CppDepend ZIPs
-    packages.toml                   slug-to-SHA-256 index
+    packages.toml                   current slug, SHA-256, manifest index
     2026-2-fix-a1b2c3d4e5f6.zip    immutable vendor archive
     2026-2-fix-a1b2c3d4e5f6.toml   its description and metadata
 ```
@@ -156,4 +159,5 @@ shown while it runs, and `imdepend` returns the console process's exit code.
 This lets scripts and Codex tell when the analysis has finished.
 
 Use `--help` on any command for its arguments. Inspection and management
-commands also support `--json` for scripts and Codex.
+commands also support `--json` for scripts and Codex. The response fields and
+exit codes are described in [JSON output](json-output.md).
